@@ -6,6 +6,11 @@ import { vertex_shader } from "./shaders/vertex_shader.js";
 import { fragment_shader } from "./shaders/fragment_shader.js";
 import { gaussian_blur_fragment_shader } from "./shaders/gaussian_blur_fragment_shader.js";
 
+//User inputs
+var userClicked = false;
+var clickX = 0;
+var clickY = 0;
+
 //webgl main function
 main();
 
@@ -29,7 +34,7 @@ function main() {
 
     //Create a fragment shader
     var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    var fragmentShaderSource = gaussian_blur_fragment_shader;
+    var fragmentShaderSource = fragment_shader;
     
     gl.shaderSource(fragmentShader, fragmentShaderSource);
     gl.compileShader(fragmentShader);
@@ -85,24 +90,30 @@ function main() {
 
     
     var imageData = getRandomImage();
-    imageData = everyOtherLine(imageData);
+    //imageData = everyOtherLine(imageData);
     
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
     //gl.bindTexture(gl.TEXTURE_2D, null);
 
     //Loop data
-    var loop_count = 0; //Amount of frames since start
+        var loop_count = 0; //Amount of frames since start
+        //fps counter
+        var last50frames = new Array(50).fill(30);
+        const fps_counter = document.getElementById('i_fpsCount');
+        var then = 0;
 
-    var loop = function() {
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    //Main update loop
+    var loop = function(now) {
+        gl.clearColor(0.0, 0.0, 0.2, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
         
-        if(loop_count % 4 == 0)
+        if(loop_count % 1 == 0)
         {
             imageData = everyOtherLine(imageData);
+            if(userClicked == true) imageData = clickSetFire(imageData);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
         }
         
@@ -111,7 +122,20 @@ function main() {
         gl.activeTexture(gl.TEXTURE0);
 
         requestAnimationFrame(loop);
+
+
         loop_count++;
+
+        //Fps information
+        now *= 0.001;
+        var deltaTime = now - then;
+        then = now;
+        last50frames[loop_count % 50] = 1/deltaTime;
+
+        //Calculate FPS
+        var fps = last50frames.reduce((a, b) => a + b, 0)/50;
+        fps_counter.innerHTML = Math.floor(fps);
+
     };
 
     requestAnimationFrame(loop);
@@ -128,24 +152,63 @@ function everyOtherLine(imageData)
 
     for(let row = 0; row < height; row += 1)
     {
-        for(let column = 0; column < width * 4; column += 1)
+        for(let column = 0; column < width; column += 1)
         {
-            let currentPixel = row * 4 * width + column * 4;
+            let currentPixel = (row * width + column) * 4;
 
             if(imageData.data[currentPixel] == 255)
             {
                 //random
                 setPixel(new_image, column, row, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column + 1, row, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column - 1, row, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column, row + 1, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column, row - 1, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column+1, row, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column-1, row, 255, 0, 0, 255);
+                if(Math.random() > 0.999) setPixel(new_image, column+5, row, 255, 0, 0, 255);
+                if(Math.random() > 0.999) setPixel(new_image, column-5, row, 255, 0, 0, 255);
+                if(Math.random() > 0.9999) setPixel(new_image, column+25, row, 255, 0, 0, 255);
+                if(Math.random() > 0.9999) setPixel(new_image, column-25, row, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column, row+1, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column, row-1, 255, 0, 0, 255);
+                if(Math.random() > 0.999) setPixel(new_image, column, row+5, 255, 0, 0, 255);
+                if(Math.random() > 0.999) setPixel(new_image, column, row-5, 255, 0, 0, 255);
+                if(Math.random() > 0.9999) setPixel(new_image, column, row+25, 255, 0, 0, 255);
+                if(Math.random() > 0.9999) setPixel(new_image, column, row-25, 255, 0, 0, 255);
             }
-            
         }
     }
 
+    for(let row = 0; row < height; row += 1)
+    {
+        for(let column = 0; column < width; column += 1)
+        {
+            let currentPixel = (row * width + column) * 4;
+            if(new_image.data[currentPixel] != 255)
+            {
+                new_image.data[currentPixel] = imageData.data[currentPixel];
+                new_image.data[currentPixel+1] = imageData.data[currentPixel+1];
+                new_image.data[currentPixel+2] = imageData.data[currentPixel+2];
+                new_image.data[currentPixel+3] = imageData.data[currentPixel+3];
+            }
+        }
+    }
+
+
+
     return new_image;
+}
+
+function clickSetFire(imageData)
+{
+
+    const width = 640;
+    const height = 480;
+    //Get mouse position on webgl canvas
+    //Set fire
+    let x = Math.floor(clickX);
+    let y = Math.floor(clickY);
+    console.log(x, y)
+    setPixel(imageData, x, y, 255, 0, 0, 255);
+    userClicked = false;
+    return imageData;
 }
 
 function setPixel(image, x, y, r, g, b, a)
@@ -153,10 +216,32 @@ function setPixel(image, x, y, r, g, b, a)
     const width = 640;
     const height = 480;
 
-    const index = (x + y * width) * 4;
+    let currentPixel = (x + y * width) * 4;
 
-    image.data[index + 0] = r;
-    image.data[index + 1] = g;
-    image.data[index + 2] = b;
-    image.data[index + 3] = a;
+    //return if out of bounds
+    if(x < 0 || x >= width || y < 0 || y > height) return;
+
+    image.data[currentPixel + 0] = r;
+    image.data[currentPixel + 1] = g;
+    image.data[currentPixel + 2] = b;
+    image.data[currentPixel + 3] = a;
 }
+
+
+addEventListener('mousedown', (event) => {});
+
+onmousedown = (event) => { 
+    if(event.button == 0)
+    {
+        //Update user input variables
+        userClicked = true;
+        
+        //Mouse Position based on canvas
+        const canvas = document.getElementById('glcanvas');
+        let rect = canvas.getBoundingClientRect();
+        clickX = Math.floor(event.clientX - rect.left);
+        clickY = Math.floor(rect.top + rect.height - event.clientY);
+
+        console.log('Mouse X: ' + clickX + ' Mouse Y: ' + clickY);
+    }
+};
