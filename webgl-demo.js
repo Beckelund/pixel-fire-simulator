@@ -1,270 +1,162 @@
-import { initBuffers } from "./init-buffers.js";
-import { drawScene } from "./draw-scene.js";
+//Other functions
+import { getRandomImage } from "./random_background.js";
 
+//Shaders from files
+import { vertex_shader } from "./shaders/vertex_shader.js";
+import { fragment_shader } from "./shaders/fragment_shader.js";
+import { gaussian_blur_fragment_shader } from "./shaders/gaussian_blur_fragment_shader.js";
+
+//webgl main function
 main();
 
-//
-// start here
-//
-
-//Variables time
-let squareRotation = 0.0;
-let cubeRotation = 0.0;
-let deltaTime = 0;
-
 function main() {
-    const canvas = document.querySelector("#glcanvas");
-    // Initialize the GL context
-    const gl = canvas.getContext("webgl", {antialias: false});
 
-    // Only continue if WebGL is available and working
-    if (gl === null) {
-    alert(
-        "Unable to initialize WebGL. Your browser or machine may not support it."
-    );
-    return;
-    }
+    // Get the canvas element and the WebGL context
+    const canvas = document.getElementById('glcanvas');
+    const gl = canvas.getContext('webgl');
 
-    console.log(gl.drawingBufferWidth);
-    console.log(gl.canvas.clientWidth);
-    console.log(gl.drawingBufferHeight);
-    console.log(gl.canvas.clientHeight);
-
-    // Vertex shader program
-    // Vertex shader program
-
-    const vsSource = `
-    attribute vec4 aVertexPosition;
-    attribute vec3 aVertexNormal;
-    attribute vec2 aTextureCoord;
-
-    uniform mat4 uNormalMatrix;
-    uniform mat4 uModelViewMatrix;
-    uniform mat4 uProjectionMatrix;
-
-    varying highp vec2 vTextureCoord;
-    varying highp vec3 vLighting;
-
-    void main(void) {
-      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-      vTextureCoord = aTextureCoord;
-
-      // Apply lighting effect
-
-      highp vec3 ambientLight = vec3(0.3, 0.3, 0.3);
-      highp vec3 directionalLightColor = vec3(1, 1, 1);
-      highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.0));
-
-      highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
-
-      highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
-      vLighting = ambientLight + (directionalLightColor * directional);
-    }
-  `;
-
-
-
-
-    // Fragment shader program
-    const fsSource = `
-    varying highp vec2 vTextureCoord;
-    varying highp vec3 vLighting;
-
-    uniform sampler2D uSampler;
-
-    void main(void) {
-      highp vec4 texelColor = texture2D(uSampler, vTextureCoord);
-
-      gl_FragColor = vec4(texelColor.rgb * vLighting, texelColor.a);
-    }
-  `;
-
-
-
-    // Initialize a shader program; this is where all the lighting
-    // for the vertices and so forth is established.
-    const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
-
-    // Collect all the info needed to use the shader program.
-    // Look up which attributes our shader program is using
-    // for aVertexPosition, aVertexColor and also
-    // look up uniform locations.
-    const programInfo = {
-        program: shaderProgram,
-        attribLocations: {
-          vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
-          vertexNormal: gl.getAttribLocation(shaderProgram, "aVertexNormal"),
-          textureCoord: gl.getAttribLocation(shaderProgram, "aTextureCoord"),
-        },
-        uniformLocations: {
-          projectionMatrix: gl.getUniformLocation(shaderProgram, "uProjectionMatrix"),
-          modelViewMatrix: gl.getUniformLocation(shaderProgram, "uModelViewMatrix"),
-          normalMatrix: gl.getUniformLocation(shaderProgram, "uNormalMatrix"),
-          uSampler: gl.getUniformLocation(shaderProgram, "uSampler"),
-        },
-      };
-      
-      
-  
-
-    // Set clear color to black, fully opaque
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    // Clear the color buffer with specified clear color
+    //Clear color
+    gl.clearColor(0.0, 0.0, 0.3, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // Here's where we call the routine that builds all the
-    // objects we'll be drawing.
-    const buffers = initBuffers(gl);
+    //Create a vertex shader
+    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    var vertexShaderSource = vertex_shader;
+    
 
-    // Load texture
-    const texture = loadTexture(gl, "cubetexture.png");
-    // Flip image pixels into the bottom-to-top order that WebGL expects.
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.shaderSource(vertexShader, vertexShaderSource);
+    gl.compileShader(vertexShader);
 
-    // Draw the scene
-    let then = 0;
+    //Create a fragment shader
+    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    var fragmentShaderSource = gaussian_blur_fragment_shader;
+    
+    gl.shaderSource(fragmentShader, fragmentShaderSource);
+    gl.compileShader(fragmentShader);
 
-    // Draw the scene repeatedly
-    function render(now) {
-        now *= 0.001; // convert to seconds
-        deltaTime = now - then;
-        then = now;
+    //Create a program
+    var program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
 
-        drawScene(gl, programInfo, buffers, texture, cubeRotation);
-        cubeRotation += deltaTime;
+    var vertices = new Float32Array([
+        //X, Y,         U, V
+        //Triangle 1
+        -1.0, -1.0,     0, 0,
+        1.0, -1.0,      1, 0,
+        1.0, 1.0,       1, 1,
+        //Triangle 2
+        -1.0, -1.0,     0, 0,
+        1.0, 1.0,       1, 1,
+        -1.0, 1.0,      0, 1,
+    ]);
 
+    //Create a buffer
+    var buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 
-        requestAnimationFrame(render);
-    }
-    requestAnimationFrame(render);
+    gl.useProgram(program);
+    program.color = gl.getUniformLocation(program, 'color');
+    gl.uniform4fv(program.color, [1.0, 0.0, 0.0, 1.0]);
 
-}
+    var positionAttribLocation = gl.getAttribLocation(program, 'position');
+    gl.enableVertexAttribArray(positionAttribLocation);
+    gl.vertexAttribPointer(positionAttribLocation, 2, gl.FLOAT, gl.FALSE, 4 * Float32Array.BYTES_PER_ELEMENT, 0);
 
-//
-// Initialize a shader program, so WebGL knows how to draw our data
-//
-function initShaderProgram(gl, vsSource, fsSource) {
-    const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
-    const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+    var texCoordAttribLocation = gl.getAttribLocation(program, 'vertTexCoord');
+    gl.enableVertexAttribArray(texCoordAttribLocation);
+    gl.vertexAttribPointer(texCoordAttribLocation, 2, gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 2 * Float32Array.BYTES_PER_ELEMENT);
 
-    // Create the shader program
+    
+    //Create a texture
+    var background_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, background_texture);
+    //Texture Parameters
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    
+    //Load the image
+    var image = new Image();
+    image.src = 'cubetexture.png';
 
-    const shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    gl.linkProgram(shaderProgram);
+    
+    var imageData = getRandomImage();
+    imageData = everyOtherLine(imageData);
+    
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
+    //gl.bindTexture(gl.TEXTURE_2D, null);
 
-    // If creating the shader program failed, alert
+    //Loop data
+    var loop_count = 0; //Amount of frames since start
 
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert(
-        `Unable to initialize the shader program: ${gl.getProgramInfoLog(
-            shaderProgram
-        )}`
-        );
-        return null;
-    }
+    var loop = function() {
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
 
-    return shaderProgram;
-    }
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    //
-    // creates a shader of the given type, uploads the source and
-    // compiles it.
-    //
-    function loadShader(gl, type, source) {
-    const shader = gl.createShader(type);
+        
+        if(loop_count % 4 == 0)
+        {
+            imageData = everyOtherLine(imageData);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
+        }
+        
+        
+        gl.bindTexture(gl.TEXTURE_2D, background_texture);
+        gl.activeTexture(gl.TEXTURE0);
 
-    // Send the source to the shader object
-
-    gl.shaderSource(shader, source);
-
-    // Compile the shader program
-
-    gl.compileShader(shader);
-
-    // See if it compiled successfully
-
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        alert(
-        `An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`
-        );
-        gl.deleteShader(shader);
-        return null;
-    }
-
-    return shader;
-}
-
-//
-// Initialize a texture and load an image.
-// When the image finished loading copy it into the texture.
-//
-function loadTexture(gl, url) {
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-  
-    // Because images have to be downloaded over the internet
-    // they might take a moment until they are ready.
-    // Until then put a single pixel in the texture so we can
-    // use it immediately. When the image has finished downloading
-    // we'll update the texture with the contents of the image.
-    const level = 0;
-    const internalFormat = gl.RGBA;
-    const width = 1;
-    const height = 1;
-    const border = 0;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-    const pixel = new Uint8Array([0, 0, 255, 255]); // opaque blue
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      level,
-      internalFormat,
-      width,
-      height,
-      border,
-      srcFormat,
-      srcType,
-      pixel
-    );
-  
-    const image = new Image();
-    image.onload = () => {
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        level,
-        internalFormat,
-        srcFormat,
-        srcType,
-        image
-      );
-  
-      // WebGL1 has different requirements for power of 2 images
-      // vs non power of 2 images so check if the image is a
-      // power of 2 in both dimensions.
-      if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
-        // Yes, it's a power of 2. Generate mips.
-        gl.generateMipmap(gl.TEXTURE_2D);
-      } else {
-        // No, it's not a power of 2. Turn off mips and set
-        // wrapping to clamp to edge
-        // gl.NEAREST is also allowed, instead of gl.LINEAR, as neither mipmap.
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        // Prevents s-coordinate wrapping (repeating).
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        // Prevents t-coordinate wrapping (repeating).
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      }
+        requestAnimationFrame(loop);
+        loop_count++;
     };
-    image.src = url;
-  
-    return texture;
-  }
-  
-  function isPowerOf2(value) {
-    return (value & (value - 1)) === 0;
-  }
-  
-  
+
+    requestAnimationFrame(loop);
+}
+
+function everyOtherLine(imageData)
+{
+    const width = 640;
+    const height = 480;
+    const oneRow = width * 4;
+    const oneColumn = 4;
+
+    const new_image = new ImageData(width, height);
+
+    for(let row = 0; row < height; row += 1)
+    {
+        for(let column = 0; column < width * 4; column += 1)
+        {
+            let currentPixel = row * 4 * width + column * 4;
+
+            if(imageData.data[currentPixel] == 255)
+            {
+                //random
+                setPixel(new_image, column, row, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column + 1, row, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column - 1, row, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column, row + 1, 255, 0, 0, 255);
+                if(Math.random() > 0.99) setPixel(new_image, column, row - 1, 255, 0, 0, 255);
+            }
+            
+        }
+    }
+
+    return new_image;
+}
+
+function setPixel(image, x, y, r, g, b, a)
+{
+    const width = 640;
+    const height = 480;
+
+    const index = (x + y * width) * 4;
+
+    image.data[index + 0] = r;
+    image.data[index + 1] = g;
+    image.data[index + 2] = b;
+    image.data[index + 3] = a;
+}
