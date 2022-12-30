@@ -10,10 +10,22 @@ import { gaussian_blur_fragment_shader } from "./shaders/gaussian_blur_fragment_
 var userClicked = false;
 var clickX = 0;
 var clickY = 0;
+var render_mode = 1;
 
 //Simulation settings
 const height = 480/4;
 const width = 640/4;
+
+//Update-loop settings
+const pixel_offset = 5;
+const pixel_offset_increment = 1;   //Has to be an odd number
+if(pixel_offset_increment == 0) console.error("pixel_offset_increment has to be greater than 0");
+if(pixel_offset_increment % 2 == 0) console.error("pixel_offset_increment has to be an odd number");
+
+var pixel_offset_count = 0;
+
+//Frame counter
+var loop_count = 0; //Amount of frames since start
 
 //webgl main function
 main();
@@ -107,7 +119,7 @@ function main() {
     forestImage.onload = function() {
         ctx.drawImage(forestImage, 0, 0, width, height);
         var imgData = ctx.getImageData(0,0, width, height);
-        console.log(imgData.data);
+        //console.log(imgData.data);
 
         //imageData.data.set(imgData.data);
 
@@ -126,6 +138,7 @@ function main() {
             }
         }
 
+        imageData = reformat_input(imageData);
         c.remove();
     };
     
@@ -133,7 +146,6 @@ function main() {
     //gl.bindTexture(gl.TEXTURE_2D, null);
 
     //Loop data
-        var loop_count = 0; //Amount of frames since start
         //fps counter
         var last50frames = new Array(50).fill(30);
         const fps_counter = document.getElementById('i_fpsCount');
@@ -147,13 +159,22 @@ function main() {
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
         
-        if(loop_count % 5 == 0)
+        var new_frame = new ImageData(width, height);
+        if(loop_count % 1 == 0)
         {
-            imageData = everyOtherLine(imageData);
+            imageData = update_image(imageData);
             if(userClicked == true) imageData = clickSetFire(imageData);
+
+            if(render_mode == 1) {
+                new_frame = imageData;
+            }
+            if(render_mode == 2) {
+                new_frame = imageData;
+            }
+
         }
 
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, new_frame);
 
         //Update time
         let someTimeValue = now * 0.001;
@@ -183,37 +204,33 @@ function main() {
     requestAnimationFrame(loop);
 }
 
-function everyOtherLine(imageData)
+function update_image(imageData)
 {
-    //const width = 640;
-    //const height = 480;
     const oneRow = width * 4;
     const oneColumn = 4;
 
     const new_image = new ImageData(width, height);
 
-    for(let row = 0; row < height; row += 1)
+    //Offset handling
+    const offset = pixel_offset_count % pixel_offset;
+    pixel_offset_count += pixel_offset_increment;
+
+    for(let row = Math.floor(pixel_offset_count / pixel_offset)%pixel_offset; row < height; row += pixel_offset)
     {
-        for(let column = 0; column < width; column += 1)
+        for(let column = offset; column < width; column += pixel_offset)
         {
             let currentPixel = (row * width + column) * 4;
 
             if(imageData.data[currentPixel] == 255)
             {
-                //random                
                 setPixel(new_image, column, row, 255, 0, 0, 255);
-                if(Math.random() > 0.59) setPixel(new_image, column-1, row, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column+1, row, 255, 0, 0, 255);
-                if(Math.random() > 0.999) setPixel(new_image, column+5, row, 255, 0, 0, 255);
-                if(Math.random() > 0.999) setPixel(new_image, column-5, row, 255, 0, 0, 255);
-                if(Math.random() > 0.9999) setPixel(new_image, column+25, row, 255, 0, 0, 255);
-                if(Math.random() > 0.9999) setPixel(new_image, column-25, row, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column, row+1, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column, row-1, 255, 0, 0, 255);
-                if(Math.random() > 0.999) setPixel(new_image, column, row+5, 255, 0, 0, 255);
-                if(Math.random() > 0.999) setPixel(new_image, column, row-5, 255, 0, 0, 255);
-                if(Math.random() > 0.9999) setPixel(new_image, column, row+25, 255, 0, 0, 255);
-                if(Math.random() > 0.9999) setPixel(new_image, column, row-25, 255, 0, 0, 255);
+                if(Math.random() > 0.0)
+                {
+                    setPixel(new_image, column-1, row, 255, 0, 0, 255);
+                    setPixel(new_image, column+1, row, 255, 0, 0, 255);
+                    setPixel(new_image, column, row-1, 255, 0, 0, 255);
+                    setPixel(new_image, column, row+1, 255, 0, 0, 255);
+                }
             }
         }
     }
@@ -307,3 +324,60 @@ onmousedown = (event) => {
         console.log('Mouse X: ' + clickX + ' Mouse Y: ' + clickY);
     }
 };
+
+//Get number press on keyboard
+addEventListener('keydown', (event) => {
+    if(event.key == '1') render_mode = 1;
+    if(event.key == '2') render_mode = 2;
+    if(event.key == '3') render_mode = 3;
+    if(event.key == '4') render_mode = 4;
+    if(event.key == '5') render_mode = 5;
+});
+
+//Function only used for the given test function
+function reformat_input(image)
+{
+    const new_image = new ImageData(width, height);
+
+    //Make black and white
+    for(let row = 0; row < height; row++)
+    {
+        for(let column = 0; column < width; column++)
+        {
+            let currentPixel = (row * width + column) * 4;
+            new_image.data[currentPixel + 0] = image.data[currentPixel + 0];
+            new_image.data[currentPixel + 1] = image.data[currentPixel + 0];
+            new_image.data[currentPixel + 2] = image.data[currentPixel + 0];
+            new_image.data[currentPixel + 3] = 255;
+        }
+    }
+
+    //Remove aliasing
+    for(let row = 0; row < height; row++)
+    {
+        for(let column = 0; column < width; column++)
+        {
+            let currentPixel = (row * width + column) * 4;
+            if(new_image.data[currentPixel + 0] >= 190)
+            {
+                new_image.data[currentPixel + 0] = 192;
+                new_image.data[currentPixel + 1] = 192;
+                new_image.data[currentPixel + 2] = 192;
+            }
+            else if(new_image.data[currentPixel + 0] >= 90)
+            {
+                new_image.data[currentPixel + 0] = 97;
+                new_image.data[currentPixel + 1] = 97;
+                new_image.data[currentPixel + 2] = 97;
+            }
+            else 
+            {
+                new_image.data[currentPixel + 0] = 34;
+                new_image.data[currentPixel + 1] = 34;
+                new_image.data[currentPixel + 2] = 34;
+            }
+        }
+    }
+
+    return new_image;
+}
