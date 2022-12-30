@@ -40,7 +40,7 @@ var fragment_shader = [
                 'counter += 1.0;',
             '}',
         '}',
-
+                
         'intensity /= counter;',
 
         'if(aColor.r > 0.99){',
@@ -48,10 +48,29 @@ var fragment_shader = [
         '}',
 
         'gl_FragColor = aColor * (0.5 + intensity * 0.5);',
-    
+
+        
+        //Set material?
+        'if(aColor.r < 0.2){',
+        'gl_FragColor = vec4(0.5, 0.2, 0.2, 1.0);',
+        '}',
+        
+        'if(aColor.r > 0.2 && aColor.r < 0.4){',
+        'gl_FragColor = vec4(0.2, 0.5, 0.2, 1.0);',
+        '}',
+        
+        'if(aColor.r > 0.4 && aColor.r < 1.0){',
+        'gl_FragColor = vec4(0.2, 0.2, 0.5, 1.0);',
+        '}',
+        
+        //Smoke
+        'if(aColor.r < 0.9 && texture2D(sampler, fragTexCoord + vec2(0.0, -0.02)).r > 0.9){',
+            'gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);',
+        '}',
+
         '',
-    '}',
-].join('\n');
-
-
+        '}',
+    ].join('\n');
+    
+    
 export { fragment_shader }
