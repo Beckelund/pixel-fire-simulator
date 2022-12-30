@@ -11,6 +11,10 @@ var userClicked = false;
 var clickX = 0;
 var clickY = 0;
 
+//Simulation settings
+const height = 480/4;
+const width = 640/4;
+
 //webgl main function
 main();
 
@@ -73,8 +77,16 @@ function main() {
     var texCoordAttribLocation = gl.getAttribLocation(program, 'vertTexCoord');
     gl.enableVertexAttribArray(texCoordAttribLocation);
     gl.vertexAttribPointer(texCoordAttribLocation, 2, gl.FLOAT, false, 4 * Float32Array.BYTES_PER_ELEMENT, 2 * Float32Array.BYTES_PER_ELEMENT);
-
     
+    const timeLocation = gl.getUniformLocation(program, "time");
+    gl.uniform1f(timeLocation, Date.now() * 0.001);
+
+    const heightLocation = gl.getUniformLocation(program, "height");
+    gl.uniform1f(heightLocation, height);
+
+    const widthLocation = gl.getUniformLocation(program, "width");
+    gl.uniform1f(widthLocation, width);
+
     //Create a texture
     var background_texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, background_texture);
@@ -85,12 +97,37 @@ function main() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     
     //Load the image
-    var image = new Image();
-    image.src = 'cubetexture.png';
+    var imageData = new ImageData(width, height);
 
-    
-    var imageData = getRandomImage();
-    //imageData = everyOtherLine(imageData);
+    //Try load image through canvas
+    var c = document.getElementById("img_canvas");
+    var ctx = c.getContext("2d");
+    var forestImage = new Image();
+    forestImage.src = 'background_forest.png';
+    forestImage.onload = function() {
+        ctx.drawImage(forestImage, 0, 0, width, height);
+        var imgData = ctx.getImageData(0,0, width, height);
+        console.log(imgData.data);
+
+        //imageData.data.set(imgData.data);
+
+        //Flip image
+        for(var i = 0; i < imageData.height; i++)
+        {
+            for(var j = 0; j < imageData.width; j++)
+            {
+                var index = (i * imageData.width + j) * 4;
+                var png_index = ((imageData.height - i - 1) * imageData.width + j) * 4;
+
+                imageData.data[index + 0] = imgData.data[png_index + 0];
+                imageData.data[index + 1] = imgData.data[png_index + 1];
+                imageData.data[index + 2] = imgData.data[png_index + 2];
+                imageData.data[index + 3] = imgData.data[png_index + 3];
+            }
+        }
+
+        c.remove();
+    };
     
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
     //gl.bindTexture(gl.TEXTURE_2D, null);
@@ -110,12 +147,17 @@ function main() {
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
         
-        if(loop_count % 1 == 0)
+        if(loop_count % 5 == 0)
         {
             imageData = everyOtherLine(imageData);
             if(userClicked == true) imageData = clickSetFire(imageData);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
         }
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
+
+        //Update time
+        let someTimeValue = now * 0.001;
+        gl.uniform1f(timeLocation, someTimeValue);
         
         
         gl.bindTexture(gl.TEXTURE_2D, background_texture);
@@ -143,8 +185,8 @@ function main() {
 
 function everyOtherLine(imageData)
 {
-    const width = 640;
-    const height = 480;
+    //const width = 640;
+    //const height = 480;
     const oneRow = width * 4;
     const oneColumn = 4;
 
@@ -158,10 +200,10 @@ function everyOtherLine(imageData)
 
             if(imageData.data[currentPixel] == 255)
             {
-                //random
+                //random                
                 setPixel(new_image, column, row, 255, 0, 0, 255);
+                if(Math.random() > 0.59) setPixel(new_image, column-1, row, 255, 0, 0, 255);
                 if(Math.random() > 0.99) setPixel(new_image, column+1, row, 255, 0, 0, 255);
-                if(Math.random() > 0.99) setPixel(new_image, column-1, row, 255, 0, 0, 255);
                 if(Math.random() > 0.999) setPixel(new_image, column+5, row, 255, 0, 0, 255);
                 if(Math.random() > 0.999) setPixel(new_image, column-5, row, 255, 0, 0, 255);
                 if(Math.random() > 0.9999) setPixel(new_image, column+25, row, 255, 0, 0, 255);
@@ -199,27 +241,47 @@ function everyOtherLine(imageData)
 function clickSetFire(imageData)
 {
 
-    const width = 640;
-    const height = 480;
+    //const width = 640;
+    //const height = 480;
     //Get mouse position on webgl canvas
     //Set fire
     let x = Math.floor(clickX);
     let y = Math.floor(clickY);
     console.log(x, y)
+    console.log(getPixel(imageData, x, y));
+    
     setPixel(imageData, x, y, 255, 0, 0, 255);
     userClicked = false;
     return imageData;
 }
 
+function getPixel(image, x, y)
+{
+    const result = [];
+
+    //const width = 640;
+
+    let currentPixel = (x + y * width) * 4;
+    
+    result[0] = image.data[currentPixel + 0];
+    result[1] = image.data[currentPixel + 1];
+    result[2] = image.data[currentPixel + 2];
+    result[3] = image.data[currentPixel + 3];
+    
+    return result;
+}
+
 function setPixel(image, x, y, r, g, b, a)
 {
-    const width = 640;
-    const height = 480;
+    //const width = 640;
+    //const height = 480;
 
     let currentPixel = (x + y * width) * 4;
 
     //return if out of bounds
     if(x < 0 || x >= width || y < 0 || y > height) return;
+
+
 
     image.data[currentPixel + 0] = r;
     image.data[currentPixel + 1] = g;
@@ -239,8 +301,8 @@ onmousedown = (event) => {
         //Mouse Position based on canvas
         const canvas = document.getElementById('glcanvas');
         let rect = canvas.getBoundingClientRect();
-        clickX = Math.floor(event.clientX - rect.left);
-        clickY = Math.floor(rect.top + rect.height - event.clientY);
+        clickX = Math.floor(width*(event.clientX - rect.left)/640);
+        clickY = Math.floor(height*(rect.top + rect.height - event.clientY)/480);
 
         console.log('Mouse X: ' + clickX + ' Mouse Y: ' + clickY);
     }
