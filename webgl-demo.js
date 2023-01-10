@@ -4,7 +4,11 @@ import { getRandomImage } from "./random_background.js";
 //Shaders from files
 import { vertex_shader } from "./shaders/vertex_shader.js";
 import { fragment_shader } from "./shaders/fragment_shader.js";
+import { fragment_shader2 } from "./shaders/fragment_shader2.js";
 import { gaussian_blur_fragment_shader } from "./shaders/gaussian_blur_fragment_shader.js";
+
+//Image generators from files
+import { generateSky } from "./image_generation/generateSky.js";
 
 //User inputs
 var userClicked = false;
@@ -13,11 +17,14 @@ var clickY = 0;
 var render_mode = 1;
 
 //Simulation settings
-const height = 480/4;
-const width = 640/4;
+const height = 480/2;
+const width = 640/2;
+
+const shimmer_Height = 0;
+const flames_Height = 6;
 
 //Update-loop settings
-const pixel_offset = 5;
+const pixel_offset = 3;
 const pixel_offset_increment = 1;   //Has to be an odd number
 if(pixel_offset_increment == 0) console.error("pixel_offset_increment has to be greater than 0");
 if(pixel_offset_increment % 2 == 0) console.error("pixel_offset_increment has to be an odd number");
@@ -28,7 +35,11 @@ var pixel_offset_count = 0;
 var loop_count = 0; //Amount of frames since start
 
 //webgl main function
-main();
+var SimplexNoisesrc;
+$.get('shaders/Simplex2DNoise.glsl', function(data) {
+    SimplexNoisesrc = data;
+    main();
+});
 
 function main() {
 
@@ -49,10 +60,12 @@ function main() {
     gl.compileShader(vertexShader);
 
     //Create a fragment shader
+    //append 2DSimplexNoise file
+
     var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
     var fragmentShaderSource = fragment_shader;
     
-    gl.shaderSource(fragmentShader, fragmentShaderSource);
+    gl.shaderSource(fragmentShader, SimplexNoisesrc + fragmentShaderSource);
     gl.compileShader(fragmentShader);
 
     //Create a program
@@ -99,17 +112,65 @@ function main() {
     const widthLocation = gl.getUniformLocation(program, "width");
     gl.uniform1f(widthLocation, width);
 
+    //Texture Locations
+    const pixelTexUnit = 0;
+    const skyTexUnit = 1;
+    const fireMapUnit = 2;
+    const flamesMapUnit = 3;
+    const shimmerMapUnit = 4;
+
+    gl.uniform1i(gl.getUniformLocation(program, "sampler"), pixelTexUnit);
+    gl.uniform1i(gl.getUniformLocation(program, "SkyTexture"), skyTexUnit);
+    gl.uniform1i(gl.getUniformLocation(program, "FireMap"), fireMapUnit);
+    gl.uniform1i(gl.getUniformLocation(program, "FlamesMap"), flamesMapUnit);
+    gl.uniform1i(gl.getUniformLocation(program, "ShimmerMap"), shimmerMapUnit);
+
+    
     //Create a texture
     var background_texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, background_texture);
-    //Texture Parameters
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     
+    //Sky texture
+    var sky_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, sky_texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    var sky_Image = generateSky(width, height);
+
+    //Fire map
+    var fire_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, fire_texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    var fire_Image = new ImageData(width, height);
+
+    //Flames map
+    var flames_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, flames_texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    //Shimmer map
+    var shimmer_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, shimmer_texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+    
     //Load the image
-    var imageData = new ImageData(width, height);
+    var background_Image = new ImageData(width, height);
 
     //Try load image through canvas
     var c = document.getElementById("img_canvas");
@@ -124,25 +185,38 @@ function main() {
         //imageData.data.set(imgData.data);
 
         //Flip image
-        for(var i = 0; i < imageData.height; i++)
+        for(var i = 0; i < background_Image.height; i++)
         {
-            for(var j = 0; j < imageData.width; j++)
+            for(var j = 0; j < background_Image.width; j++)
             {
-                var index = (i * imageData.width + j) * 4;
-                var png_index = ((imageData.height - i - 1) * imageData.width + j) * 4;
+                var index = (i * background_Image.width + j) * 4;
+                var png_index = ((background_Image.height - i - 1) * background_Image.width + j) * 4;
 
-                imageData.data[index + 0] = imgData.data[png_index + 0];
-                imageData.data[index + 1] = imgData.data[png_index + 1];
-                imageData.data[index + 2] = imgData.data[png_index + 2];
-                imageData.data[index + 3] = imgData.data[png_index + 3];
+                background_Image.data[index + 0] = imgData.data[png_index + 0];
+                background_Image.data[index + 1] = imgData.data[png_index + 1];
+                background_Image.data[index + 2] = imgData.data[png_index + 2];
+                background_Image.data[index + 3] = imgData.data[png_index + 3];
             }
-        }
+        } 
 
-        imageData = reformat_input(imageData);
+        background_Image = reformat_input(background_Image);
         c.remove();
     };
     
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
+    //Create second program for rendering specific textures
+
+    var fragmentShader2 = gl.createShader(gl.FRAGMENT_SHADER);
+    var fragmentShaderSource2 = fragment_shader2;
+
+    gl.shaderSource(fragmentShader2, fragmentShaderSource2);
+    gl.compileShader(fragmentShader2);
+
+
+    var program2 = gl.createProgram(gl, vertexShaderSource, fragmentShaderSource2);
+    gl.attachShader(program2, vertexShader);
+    gl.attachShader(program2, fragmentShader2);
+    gl.linkProgram(program2);
+
     //gl.bindTexture(gl.TEXTURE_2D, null);
 
     //Loop data
@@ -150,7 +224,10 @@ function main() {
         var last50frames = new Array(50).fill(30);
         const fps_counter = document.getElementById('i_fpsCount');
         var then = 0;
-
+        
+    var new_frame = new ImageData(width, height);
+    var shimmer_Map = new ImageData(width, height);
+    var flames_Map = new ImageData(width, height);
     //Main update loop
     var loop = function(now) {
         gl.clearColor(0.0, 0.0, 0.2, 1.0);
@@ -158,31 +235,71 @@ function main() {
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-        
-        var new_frame = new ImageData(width, height);
-        if(loop_count % 1 == 0)
-        {
-            imageData = update_image(imageData);
-            if(userClicked == true) imageData = clickSetFire(imageData);
-
-            if(render_mode == 1) {
-                new_frame = imageData;
-            }
-            if(render_mode == 2) {
-                new_frame = imageData;
-            }
-
+        //Update simulation
+        if(loop_count % 1 == 0) {            
+            //imageData = update_image(imageData);
+            [flames_Map, shimmer_Map] = generateFlameShimmerMap(fire_Image);
+            fire_Image = spreadFire(fire_Image, background_Image);
+            if(userClicked == true) fire_Image = clickSetFire(fire_Image);
         }
-
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, new_frame);
-
-        //Update time
-        let someTimeValue = now * 0.001;
-        gl.uniform1f(timeLocation, someTimeValue);
         
+        if(render_mode == 1) {
+            gl.useProgram(program);
+            //Update time
+            let someTimeValue = now * 0.001;
+            gl.uniform1f(timeLocation, someTimeValue);
+            
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, background_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, background_Image);
+            
+            gl.activeTexture(gl.TEXTURE0 + 1);
+            gl.bindTexture(gl.TEXTURE_2D, sky_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sky_Image);
+
+            gl.activeTexture(gl.TEXTURE0 + 2);
+            gl.bindTexture(gl.TEXTURE_2D, fire_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fire_Image);
+
+            gl.activeTexture(gl.TEXTURE0 + 3);
+            gl.bindTexture(gl.TEXTURE_2D, flames_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, flames_Map);
+
+            gl.activeTexture(gl.TEXTURE0 + 4);
+            gl.bindTexture(gl.TEXTURE_2D, shimmer_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, shimmer_Map);
+        }
+        //Render background
+        if(render_mode == 2) {
+            gl.useProgram(program2);
+            gl.bindTexture(gl.TEXTURE_2D, background_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, background_Image);
+        }
+        //Render Fire
+        if(render_mode == 3) {
+            gl.useProgram(program2);
+            gl.bindTexture(gl.TEXTURE_2D, background_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fire_Image);
+        }
+        //Render shimmer
+        if(render_mode == 4) {
+            gl.useProgram(program2);
+            gl.bindTexture(gl.TEXTURE_2D, background_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, flames_Map);
+        }
+        if(render_mode == 5) {
+            gl.useProgram(program2);
+            gl.bindTexture(gl.TEXTURE_2D, background_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, shimmer_Map);
+        }
+        //Render sky
+        if(render_mode == 6) {
+            gl.useProgram(program2);
+            gl.bindTexture(gl.TEXTURE_2D, background_texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sky_Image);
+        }
         
-        gl.bindTexture(gl.TEXTURE_2D, background_texture);
-        gl.activeTexture(gl.TEXTURE0);
+
 
         requestAnimationFrame(loop);
 
@@ -204,14 +321,10 @@ function main() {
     requestAnimationFrame(loop);
 }
 
-function update_image(imageData)
-{
-    const oneRow = width * 4;
-    const oneColumn = 4;
+function spreadFire(fireMap, background) {
 
-    const new_image = new ImageData(width, height);
+    //const new_image = new ImageData(width, height);
 
-    //Offset handling
     const offset = pixel_offset_count % pixel_offset;
     pixel_offset_count += pixel_offset_increment;
 
@@ -221,38 +334,61 @@ function update_image(imageData)
         {
             let currentPixel = (row * width + column) * 4;
 
-            if(imageData.data[currentPixel] == 255)
-            {
-                setPixel(new_image, column, row, 255, 0, 0, 255);
-                if(Math.random() > 0.0)
-                {
-                    setPixel(new_image, column-1, row, 255, 0, 0, 255);
-                    setPixel(new_image, column+1, row, 255, 0, 0, 255);
-                    setPixel(new_image, column, row-1, 255, 0, 0, 255);
-                    setPixel(new_image, column, row+1, 255, 0, 0, 255);
-                }
-            }
+            if(fireMap.data[currentPixel] != 255) continue;
+            if(background.data[currentPixel] == 192) continue;
+
+            setPixel(fireMap, column, row, 255, 0, 0, 255);
+            const odds = 0.90;
+            if(Math.random() > odds) setPixel(fireMap, column-1, row, 255, 0, 0, 255);
+            if(Math.random() > odds) setPixel(fireMap, column+1, row, 255, 0, 0, 255);
+            if(Math.random() > odds) setPixel(fireMap, column, row-1, 255, 0, 0, 255);
+            if(Math.random() > odds) setPixel(fireMap, column, row+1, 255, 0, 0, 255);
         }
     }
+
+    return fireMap;
+}
+
+function generateFlameShimmerMap(fire) {
+
+    const flames = new ImageData(width, height);
+    const shimmer = new ImageData(width, height);
+
+    const max_Height = Math.max(flames_Height, shimmer_Height);
 
     for(let row = 0; row < height; row += 1)
     {
         for(let column = 0; column < width; column += 1)
         {
             let currentPixel = (row * width + column) * 4;
-            if(new_image.data[currentPixel] != 255)
+            if(fire.data[currentPixel] == 255)
             {
-                new_image.data[currentPixel] = imageData.data[currentPixel];
-                new_image.data[currentPixel+1] = imageData.data[currentPixel+1];
-                new_image.data[currentPixel+2] = imageData.data[currentPixel+2];
-                new_image.data[currentPixel+3] = imageData.data[currentPixel+3];
+                flames.data[currentPixel+0] = 0;
+                flames.data[currentPixel+1] = 0;
+                flames.data[currentPixel+2] = 0;
+                flames.data[currentPixel+3] = 0;
+
+                shimmer.data[currentPixel+0] = 0;
+                shimmer.data[currentPixel+1] = 0;
+                shimmer.data[currentPixel+2] = 0;
+                shimmer.data[currentPixel+3] = 0;
+
+                for(let i = 1; i < max_Height; i++)
+                {
+                    let currentMap;
+                    if(i > flames_Height) currentMap = shimmer;
+                    else currentMap = flames;
+
+                    currentMap.data[currentPixel + fire.width * 4 * i] = 255;
+                    currentMap.data[currentPixel + fire.width * 4 * i + 1] = 255;
+                    currentMap.data[currentPixel + fire.width * 4 * i + 2] = 255;
+                    currentMap.data[currentPixel + fire.width * 4 * i + 3] = 255;
+                }
             }
         }
     }
 
-
-
-    return new_image;
+    return [flames, shimmer];
 }
 
 function clickSetFire(imageData)
@@ -293,11 +429,12 @@ function setPixel(image, x, y, r, g, b, a)
     //const width = 640;
     //const height = 480;
 
-    let currentPixel = (x + y * width) * 4;
+    let currentPixel = (x + y * image.width) * 4;
 
     //return if out of bounds
-    if(x < 0 || x >= width || y < 0 || y > height) return;
-
+    //if(x < 0 || x >= image.width || y < 0 || y > image.height) return;
+    //if((x >= 0 && x < image.width && y >= 0 && y <= image.height) == false) return;
+    if(x < 0 || x >= image.width) return;
 
 
     image.data[currentPixel + 0] = r;
@@ -307,9 +444,7 @@ function setPixel(image, x, y, r, g, b, a)
 }
 
 
-addEventListener('mousedown', (event) => {});
-
-onmousedown = (event) => { 
+addEventListener('mousedown', (event) => {
     if(event.button == 0)
     {
         //Update user input variables
@@ -323,7 +458,7 @@ onmousedown = (event) => {
 
         console.log('Mouse X: ' + clickX + ' Mouse Y: ' + clickY);
     }
-};
+});
 
 //Get number press on keyboard
 addEventListener('keydown', (event) => {
