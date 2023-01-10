@@ -13,6 +13,6 @@ body {
 
 }
 
-#glcanvas {
-
+#fpsCount_container {
+    display: flex;
 }
