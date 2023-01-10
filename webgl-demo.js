@@ -371,7 +371,10 @@ function spreadFire(fireMap) {
                 }
 
                 //Spread fire to other pixels
-                const odds = 0.90;
+                let odds;
+                if(background_Image.data[currentPixel] == 34) odds = 0.99;
+                if(background_Image.data[currentPixel] == 97) odds = 0.9;
+
                 if(Math.random() > odds) lightPixelOnFire(fireMap, column-1, row);
                 if(Math.random() > odds) lightPixelOnFire(fireMap, column+1, row);
                 if(Math.random() > odds) lightPixelOnFire(fireMap, column, row-1);
