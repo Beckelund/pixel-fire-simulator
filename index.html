@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <title>Pixel Fire Simulator</title>
-        <favicon href="favicon.ico" />
+        <link rel="icon" href="favicon.ico" type="image/x-icon" />
         <link rel="stylesheet" href="./webgl.css" type="text/css" />
         <script
             src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
@@ -11,13 +11,16 @@
             crossorigin="anonymous"
             defer>
         </script>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <script src="webgl-demo.js" type="module" defer></script></script>   
     </head>
     <body>
-        <h1>test</h1>
-        <p>window</p>
-        <canvas id="glcanvas" width="640" height="480"></canvas>
-        <p>fps counter:</p> <p id="i_fpsCount"></p>
-        <canvas id="img_canvas" width="640" height="480"></canvas>
+        <div id="container">
+            <h1>test</h1>
+            <p>window</p>
+            <canvas id="glcanvas" width="640" height="480"></canvas>
+            <p>fps counter:</p> <p id="i_fpsCount"></p>
+            <canvas id="img_canvas" width="640" height="480"></canvas>
+        </div>
     </body>
 </html>
