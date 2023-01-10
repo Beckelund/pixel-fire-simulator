@@ -7,8 +7,12 @@ import { fragment_shader } from "./shaders/fragment_shader.js";
 import { fragment_shader2 } from "./shaders/fragment_shader2.js";
 import { gaussian_blur_fragment_shader } from "./shaders/gaussian_blur_fragment_shader.js";
 
+//Util functions
+import { setPixel } from "../util/setPixel.js";
+
 //Image generators from files
 import { generateSky } from "./image_generation/generateSky.js";
+
 
 //User inputs
 var userClicked = false;
@@ -16,15 +20,26 @@ var clickX = 0;
 var clickY = 0;
 var render_mode = 1;
 
+var pause_simulation = false;
+var pause_shaders = false;
+
 //Simulation settings
 const height = 480/2;
 const width = 640/2;
 
-const shimmer_Height = 0;
-const flames_Height = 6;
+const shimmer_Height = 20;
+const flames_Height = 20;
+
+//Simulation variables
+    //Background
+    var background_Image = new ImageData(width, height);
+
+    //track burning pixels
+    var burning_pixels = [];
+
 
 //Update-loop settings
-const pixel_offset = 3;
+const pixel_offset = 1;
 const pixel_offset_increment = 1;   //Has to be an odd number
 if(pixel_offset_increment == 0) console.error("pixel_offset_increment has to be greater than 0");
 if(pixel_offset_increment % 2 == 0) console.error("pixel_offset_increment has to be an odd number");
@@ -36,10 +51,16 @@ var loop_count = 0; //Amount of frames since start
 
 //webgl main function
 var SimplexNoisesrc;
-$.get('shaders/Simplex2DNoise.glsl', function(data) {
-    SimplexNoisesrc = data;
-    main();
+var Materialssrc;
+$.get('shaders/Simplex2DNoise.glsl', function(noise_data) {
+    $.get('shaders/materials.glsl', function(materials_data) {
+
+        SimplexNoisesrc = noise_data;
+        Materialssrc = materials_data;
+        main();
+    });
 });
+
 
 function main() {
 
@@ -65,7 +86,7 @@ function main() {
     var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
     var fragmentShaderSource = fragment_shader;
     
-    gl.shaderSource(fragmentShader, SimplexNoisesrc + fragmentShaderSource);
+    gl.shaderSource(fragmentShader, SimplexNoisesrc + Materialssrc + fragmentShaderSource);
     gl.compileShader(fragmentShader);
 
     //Create a program
@@ -170,7 +191,6 @@ function main() {
 
     
     //Load the image
-    var background_Image = new ImageData(width, height);
 
     //Try load image through canvas
     var c = document.getElementById("img_canvas");
@@ -225,7 +245,6 @@ function main() {
         const fps_counter = document.getElementById('i_fpsCount');
         var then = 0;
         
-    var new_frame = new ImageData(width, height);
     var shimmer_Map = new ImageData(width, height);
     var flames_Map = new ImageData(width, height);
     //Main update loop
@@ -236,35 +255,37 @@ function main() {
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
         //Update simulation
-        if(loop_count % 1 == 0) {            
+        if(loop_count % 1 == 0 && pause_simulation == false) {            
             //imageData = update_image(imageData);
-            [flames_Map, shimmer_Map] = generateFlameShimmerMap(fire_Image);
-            fire_Image = spreadFire(fire_Image, background_Image);
-            if(userClicked == true) fire_Image = clickSetFire(fire_Image);
+            fire_Image = spreadFire(fire_Image);
         }
+
+        if(userClicked == true) fire_Image = clickSetFire(fire_Image);
+        if(loop_count % 10 == 0) [flames_Map, shimmer_Map] = generateFlameShimmerMap(fire_Image);
         
-        if(render_mode == 1) {
-            gl.useProgram(program);
-            //Update time
-            let someTimeValue = now * 0.001;
-            gl.uniform1f(timeLocation, someTimeValue);
-            
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, background_texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, background_Image);
-            
-            gl.activeTexture(gl.TEXTURE0 + 1);
-            gl.bindTexture(gl.TEXTURE_2D, sky_texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sky_Image);
-
-            gl.activeTexture(gl.TEXTURE0 + 2);
-            gl.bindTexture(gl.TEXTURE_2D, fire_texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fire_Image);
-
-            gl.activeTexture(gl.TEXTURE0 + 3);
-            gl.bindTexture(gl.TEXTURE_2D, flames_texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, flames_Map);
-
+        if(pause_shaders == false) {
+            if(render_mode == 1) {
+                gl.useProgram(program);
+                //Update time
+                let someTimeValue = now * 0.001;
+                gl.uniform1f(timeLocation, someTimeValue);
+                
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, background_texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, background_Image);
+                
+                gl.activeTexture(gl.TEXTURE0 + 1);
+                gl.bindTexture(gl.TEXTURE_2D, sky_texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sky_Image);
+                
+                gl.activeTexture(gl.TEXTURE0 + 2);
+                gl.bindTexture(gl.TEXTURE_2D, fire_texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fire_Image);
+                
+                gl.activeTexture(gl.TEXTURE0 + 3);
+                gl.bindTexture(gl.TEXTURE_2D, flames_texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, flames_Map);
+                
             gl.activeTexture(gl.TEXTURE0 + 4);
             gl.bindTexture(gl.TEXTURE_2D, shimmer_texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, shimmer_Map);
@@ -298,8 +319,9 @@ function main() {
             gl.bindTexture(gl.TEXTURE_2D, background_texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sky_Image);
         }
+    }
         
-
+        
 
         requestAnimationFrame(loop);
 
@@ -321,7 +343,7 @@ function main() {
     requestAnimationFrame(loop);
 }
 
-function spreadFire(fireMap, background) {
+function spreadFire(fireMap) {
 
     //const new_image = new ImageData(width, height);
 
@@ -334,19 +356,60 @@ function spreadFire(fireMap, background) {
         {
             let currentPixel = (row * width + column) * 4;
 
-            if(fireMap.data[currentPixel] != 255) continue;
-            if(background.data[currentPixel] == 192) continue;
+            //if(background_Image.data[currentPixel] == 192) continue;  //Air pixel
 
-            setPixel(fireMap, column, row, 255, 0, 0, 255);
-            const odds = 0.90;
-            if(Math.random() > odds) setPixel(fireMap, column-1, row, 255, 0, 0, 255);
-            if(Math.random() > odds) setPixel(fireMap, column+1, row, 255, 0, 0, 255);
-            if(Math.random() > odds) setPixel(fireMap, column, row-1, 255, 0, 0, 255);
-            if(Math.random() > odds) setPixel(fireMap, column, row+1, 255, 0, 0, 255);
+            if(fireMap.data[currentPixel] == 255) {
+                //Reduce lifetime of existing fire pixels
+                if(fireMap.data[currentPixel + 1] > 0) {
+                    if(background_Image.data[currentPixel] == 97) fireMap.data[currentPixel + 1] -= 4;
+                    else if(Math.random() > 0.7) fireMap.data[currentPixel + 1] -= 1.0;
+                } 
+                //Remove fire after lifetime
+                if(fireMap.data[currentPixel + 1] <= 0) {
+                    setPixel(fireMap, column, row, 0, 0, 0, 0);
+                    burnMaterial(column, row);
+                }
+
+                //Spread fire to other pixels
+                const odds = 0.90;
+                if(Math.random() > odds) lightPixelOnFire(fireMap, column-1, row);
+                if(Math.random() > odds) lightPixelOnFire(fireMap, column+1, row);
+                if(Math.random() > odds) lightPixelOnFire(fireMap, column, row-1);
+                if(Math.random() > odds) lightPixelOnFire(fireMap, column, row+1);
+            }
+
         }
     }
 
     return fireMap;
+}
+
+function lightPixelOnFire(fireMap, x, y) {
+
+    let currentPixel = (x + y * width) * 4;
+
+    if(background_Image.data[currentPixel] == 192) return; //Air pixel
+    if(background_Image.data[currentPixel] == 20) return; //burnt wood
+    if(background_Image.data[currentPixel] == 70) return; //burnt grass
+
+
+    if(fireMap.data[currentPixel] == 255) return; //Already on fire
+    //TODO prevent burned pixels
+
+    setPixel(fireMap, x, y, 255, 255, 0, 255);
+}
+
+function burnMaterial(x,y) {
+
+    //Wood
+    if(background_Image.data[(x + y * width) * 4] == 34) {
+        setPixel(background_Image, x, y, 20, 20, 20, 255);
+    }
+
+    //Grass
+    if(background_Image.data[(x + y * width) * 4] == 97) {
+        setPixel(background_Image, x, y, 70, 70, 70, 255);
+    }
 }
 
 function generateFlameShimmerMap(fire) {
@@ -355,6 +418,10 @@ function generateFlameShimmerMap(fire) {
     const shimmer = new ImageData(width, height);
 
     const max_Height = Math.max(flames_Height, shimmer_Height);
+
+    //Alpha dropoff
+    const shimmer_dropoff = Math.floor(255 / shimmer_Height);
+    const flames_dropoff = Math.floor(255 / flames_Height);
 
     for(let row = 0; row < height; row += 1)
     {
@@ -373,16 +440,20 @@ function generateFlameShimmerMap(fire) {
                 shimmer.data[currentPixel+2] = 0;
                 shimmer.data[currentPixel+3] = 0;
 
-                for(let i = 1; i < max_Height; i++)
+                for(let i = 1; i < shimmer_Height; i++)
                 {
-                    let currentMap;
-                    if(i > flames_Height) currentMap = shimmer;
-                    else currentMap = flames;
+                    shimmer.data[currentPixel + shimmer.width * 4 * i] = 255;
+                    shimmer.data[currentPixel + shimmer.width * 4 * i + 1] = 255 - i * shimmer_dropoff;
+                    shimmer.data[currentPixel + shimmer.width * 4 * i + 2] = 255;
+                    shimmer.data[currentPixel + shimmer.width * 4 * i + 3] = 255;
+                }
 
-                    currentMap.data[currentPixel + fire.width * 4 * i] = 255;
-                    currentMap.data[currentPixel + fire.width * 4 * i + 1] = 255;
-                    currentMap.data[currentPixel + fire.width * 4 * i + 2] = 255;
-                    currentMap.data[currentPixel + fire.width * 4 * i + 3] = 255;
+                for(let i = 1; i < flames_Height; i++)
+                {
+                    flames.data[currentPixel + fire.width * 4 * i] = 255;
+                    flames.data[currentPixel + fire.width * 4 * i + 1] = 255 - i * flames_dropoff;
+                    flames.data[currentPixel + fire.width * 4 * i + 2] = 255;
+                    flames.data[currentPixel + fire.width * 4 * i + 3] = 255;
                 }
             }
         }
@@ -403,7 +474,7 @@ function clickSetFire(imageData)
     console.log(x, y)
     console.log(getPixel(imageData, x, y));
     
-    setPixel(imageData, x, y, 255, 0, 0, 255);
+    setPixel(imageData, x, y, 255, 255, 0, 255);
     userClicked = false;
     return imageData;
 }
@@ -423,26 +494,6 @@ function getPixel(image, x, y)
     
     return result;
 }
-
-function setPixel(image, x, y, r, g, b, a)
-{
-    //const width = 640;
-    //const height = 480;
-
-    let currentPixel = (x + y * image.width) * 4;
-
-    //return if out of bounds
-    //if(x < 0 || x >= image.width || y < 0 || y > image.height) return;
-    //if((x >= 0 && x < image.width && y >= 0 && y <= image.height) == false) return;
-    if(x < 0 || x >= image.width) return;
-
-
-    image.data[currentPixel + 0] = r;
-    image.data[currentPixel + 1] = g;
-    image.data[currentPixel + 2] = b;
-    image.data[currentPixel + 3] = a;
-}
-
 
 addEventListener('mousedown', (event) => {
     if(event.button == 0)
@@ -467,6 +518,9 @@ addEventListener('keydown', (event) => {
     if(event.key == '3') render_mode = 3;
     if(event.key == '4') render_mode = 4;
     if(event.key == '5') render_mode = 5;
+
+    if(event.key == '9') pause_shaders = !pause_shaders;
+    if(event.key == '0') pause_simulation = !pause_simulation;
 });
 
 //Function only used for the given test function
