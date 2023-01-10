@@ -28,28 +28,40 @@ var fragment_shader = [
         'fireColor.b = 0.5;',
         'fireColor.a = 1.0;',
 
-        //Change UV coordinate based on shimmer
-        'if(texture2D(ShimmerMap, fragTexCoord).r * 255.0 == 255.0) {',
-            'vec2 co = pixelCoord;',
-            'co.x += sin(time * 10.0 + uv.y * 30.0) * 0.0005;',
-            'co.y += cos(time * 2.0) * 0.0015;',
-
-            'uv.x = co.x / width;',
-            'uv.y = co.y / height;',
-
-            'gl_FragColor = vec4(uv.x, uv.y, 1.0, 1.0);',
-        '}',
-
+        
         //Flames
         'if(texture2D(FlamesMap, fragTexCoord).r * 255.0 == 255.0) {',
             //Condition based on noise
-            'vec2 co = pixelCoord * 0.3;',
-            'vec4 flameColor = vec4(1.0, 0.8, 0.5, 1.0) * snoise(vec2(co.x, co.y - time * 10.0));',
+            'vec2 co = pixelCoord * 0.9;',
+            'vec4 flameColor = vec4(1.0, 0.8, 0.5, 1.0) * snoise(vec2(floor(co.x), co.y - time * 20.0));',
 
-            //Apply color
+            'float flame_strength = texture2D(FlamesMap, fragTexCoord).g;',
             'gl_FragColor = fireColor;',
-            'if(flameColor.a > 0.2) return;',
+            'if(flameColor.a * flame_strength > 0.5) return;',
+
+            'co = pixelCoord * 0.3;',
+            'flameColor = vec4(1.0, 0.5, 0.5, 1.0) * snoise(vec2(floor(co.x), co.y - time * 10.0));',
+            'gl_FragColor = fireColor;',
+            'if(flameColor.a * flame_strength > 0.5) return;',
+            
+            //Apply color
             //'return;',
+        '}',
+        
+        //Change UV coordinate based on shimmer
+        'if(texture2D(ShimmerMap, fragTexCoord).r * 255.0 == 255.0) {',
+            //'vec2 co = pixelCoord;',
+            'float strength = texture2D(ShimmerMap, fragTexCoord).g;',
+
+            'pixelCoord.x += sin(time * 10.0 + uv.x * 80.0) * 0.0003;',
+            'pixelCoord.y += cos(time * 2.0) * 0.0015;',
+
+            'uv.x = pixelCoord.x / width;',
+            'uv.y = pixelCoord.y / height;',
+
+            'pixelCoord = vec2(floor(uv.x*width), floor(uv.y*height));',
+
+            //'gl_FragColor = vec4(uv.x, uv.y, 1.0, 1.0);',
         '}',
 
 
@@ -82,18 +94,27 @@ var fragment_shader = [
                 
         'intensity /= counter;',
 
-        'gl_FragColor = aColor * (0.5 + intensity * 0.5);',
+        //'gl_FragColor = aColor;',
 
         
         //Set material
         //Wood
         'if(aColor.r * 255.0 == 34.0){',
-            'gl_FragColor = vec4(0.5, 0.2, 0.2, 1.0) + snoise(pixelCoord) * 0.1;',
+            //dark brown wood color
+            'gl_FragColor = woodColor(pixelCoord);',
+        '}',
+
+        'if(aColor.r * 255.0 == 20.0){',
+            'gl_FragColor = burntWoodColor(pixelCoord);',
         '}',
         
         //Grass
         'if(aColor.r * 255.0 == 97.0){',
-            'gl_FragColor = vec4(0.2, 0.5, 0.2, 1.0) + snoise(pixelCoord) * 0.1;',
+            'gl_FragColor = grassColor(pixelCoord);',
+        '}',
+
+        'if(aColor.r * 255.0 == 70.0){',
+            'gl_FragColor = burntGrassColor(pixelCoord);',
         '}',
         
         //Sky
@@ -102,7 +123,15 @@ var fragment_shader = [
             'return;',
         '}',
 
-        'gl_FragColor = gl_FragColor * clamp(0.4 + intensity * 4.0, 0.0, 1.0);',
+        //Apply light
+        'vec4 lightColor = vec4(1.0, 0.8, 0.5, 1.0);',
+
+        'float lightFactor = clamp(0.0 + intensity * 1.0, 0.0, 0.5);',
+        //'gl_FragColor = lightColor * lightFactor;',
+        'gl_FragColor = gl_FragColor * (1.0 - lightFactor) + lightColor * lightFactor;',
+        'gl_FragColor.a = 1.0;',
+        'return;',
+        //'gl_FragColor = gl_FragColor * 0.2 + lightColor * clamp(0.0 + intensity * 2.0, 0.0, 0.5);',
 
         '',
         '}',
