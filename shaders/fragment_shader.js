@@ -8,25 +8,64 @@ var fragment_shader = [
     'uniform float width;',
     '',
     'varying vec2 fragTexCoord;',
+
+    //Textures
     'uniform sampler2D sampler;',
-    //'uniform sampler2D fireNoise',
+    'uniform sampler2D SkyTexture;',
+    'uniform sampler2D FireMap;',
+    'uniform sampler2D FlamesMap;',
+    'uniform sampler2D ShimmerMap;',
     '',
     'void main() {',
-        
-        'vec4 aColor = texture2D(sampler, fragTexCoord);',
+
+        'vec2 uv = fragTexCoord;',
+        'vec2 pixelCoord = vec2(floor(uv.x*width), floor(uv.y*height));',
+
+        //Fire color
+        'vec4 fireColor;',
+        'fireColor.r = 1.0;',
+        'fireColor.g = 0.5 + 0.5 * fract(sin(dot(pixelCoord + time, vec2(12.9898, 78.233))) * 43758.5453);',
+        'fireColor.b = 0.5;',
+        'fireColor.a = 1.0;',
+
+        //Change UV coordinate based on shimmer
+        'if(texture2D(ShimmerMap, fragTexCoord).r * 255.0 == 255.0) {',
+            'vec2 co = pixelCoord;',
+            'co.x += sin(time * 10.0 + uv.y * 30.0) * 0.0005;',
+            'co.y += cos(time * 2.0) * 0.0015;',
+
+            'uv.x = co.x / width;',
+            'uv.y = co.y / height;',
+
+            'gl_FragColor = vec4(uv.x, uv.y, 1.0, 1.0);',
+        '}',
+
+        //Flames
+        'if(texture2D(FlamesMap, fragTexCoord).r * 255.0 == 255.0) {',
+            //Condition based on noise
+            'vec2 co = pixelCoord * 0.3;',
+            'vec4 flameColor = vec4(1.0, 0.8, 0.5, 1.0) * snoise(vec2(co.x, co.y - time * 10.0));',
+
+            //Apply color
+            'gl_FragColor = fireColor;',
+            'if(flameColor.a > 0.2) return;',
+            //'return;',
+        '}',
+
+
+        //Pixels currently on fire
+        'vec4 aColor = texture2D(sampler, uv);',
         'aColor = vec4(aColor.x, aColor.y, aColor.z, aColor.w);',
-        'if(aColor.r > 0.99){',
+        'if(texture2D(FireMap, uv).r * 255.0 == 255.0){',
         '',
-            'vec2 co = vec2(floor(fragTexCoord.x*width), floor(fragTexCoord.y*height));',
-            'aColor.r = 1.0;',
-            'aColor.g = 0.5 + 0.5 * fract(sin(dot(co + time, vec2(12.9898, 78.233))) * 43758.5453);',
-            'aColor.b = 0.5;',
+            'gl_FragColor = fireColor;',
+            'return;',
         '}',
 
         //Calculate light intensity
-        'const float Directions = 24.0;',
-        'const float Quality = 4.0;',
-        'const float Size = 40.0;',
+        'const float Directions = 32.0;',
+        'const float Quality = 8.0;',
+        'const float Size = 80.0;',
 
         'const vec2 Radius = Size/vec2(640.0, 480.0);',
 
@@ -36,37 +75,34 @@ var fragment_shader = [
         'const float Pi = 3.14;',
         'for(float d = 0.0; d<Pi*2.0; d+=Pi*2.0/Directions) {',
             'for(float i = 0.1; i <= 1.0; i+=1.0/Quality) {',
-                'intensity += floor(texture2D(sampler, fragTexCoord + vec2(cos(d), sin(d)) * Radius * i).r/0.9);',
+                'intensity += floor(texture2D(FireMap, uv + vec2(cos(d), sin(d)) * Radius * i).r/0.9);',
                 'counter += 1.0;',
             '}',
         '}',
                 
         'intensity /= counter;',
 
-        'if(aColor.r > 0.99){',
-            'intensity = 1.0;',
-        '}',
-
         'gl_FragColor = aColor * (0.5 + intensity * 0.5);',
 
         
-        //Set material?
-        'if(aColor.r < 0.2){',
-        'gl_FragColor = vec4(0.5, 0.2, 0.2, 1.0);',
+        //Set material
+        //Wood
+        'if(aColor.r * 255.0 == 34.0){',
+            'gl_FragColor = vec4(0.5, 0.2, 0.2, 1.0) + snoise(pixelCoord) * 0.1;',
         '}',
         
-        'if(aColor.r > 0.2 && aColor.r < 0.4){',
-        'gl_FragColor = vec4(0.2, 0.5, 0.2, 1.0);',
+        //Grass
+        'if(aColor.r * 255.0 == 97.0){',
+            'gl_FragColor = vec4(0.2, 0.5, 0.2, 1.0) + snoise(pixelCoord) * 0.1;',
         '}',
         
-        'if(aColor.r > 0.4 && aColor.r < 1.0){',
-        'gl_FragColor = vec4(0.2, 0.2, 0.5, 1.0);',
+        //Sky
+        'if(aColor.r * 255.0 == 192.0){',
+            'gl_FragColor = texture2D(SkyTexture, uv);',
+            'return;',
         '}',
-        
-        //Smoke
-        'if(aColor.r < 0.9 && texture2D(sampler, fragTexCoord + vec2(0.0, -0.02)).r > 0.9){',
-            'gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);',
-        '}',
+
+        'gl_FragColor = gl_FragColor * clamp(0.4 + intensity * 4.0, 0.0, 1.0);',
 
         '',
         '}',
