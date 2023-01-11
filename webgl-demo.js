@@ -30,6 +30,9 @@ const width = 640/2;
 const shimmer_Height = 20;
 const flames_Height = 20;
 
+const wood_odds = 0.99;
+const grass_odds = 0.90;
+
 //Simulation variables
     //Background
     var background_Image = new ImageData(width, height);
@@ -372,8 +375,8 @@ function spreadFire(fireMap) {
 
                 //Spread fire to other pixels
                 let odds;
-                if(background_Image.data[currentPixel] == 34) odds = 0.99;
-                if(background_Image.data[currentPixel] == 97) odds = 0.9;
+                if(background_Image.data[currentPixel] == 34) odds = wood_odds;
+                if(background_Image.data[currentPixel] == 97) odds = grass_odds;
 
                 if(Math.random() > odds) lightPixelOnFire(fireMap, column-1, row);
                 if(Math.random() > odds) lightPixelOnFire(fireMap, column+1, row);
