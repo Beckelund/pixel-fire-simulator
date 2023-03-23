@@ -23,7 +23,7 @@ var render_mode = 1;
 var pause_simulation = false;
 var pause_shaders = false;
 
-//Simulation settings
+//Simulation settings (pixels)
 const height = 480/2;
 const width = 640/2;
 
@@ -507,11 +507,15 @@ addEventListener('mousedown', (event) => {
         //Update user input variables
         userClicked = true;
         
+        //Get window size
+        const window_width = document.getElementById('glcanvas').width;
+        const window_height = document.getElementById('glcanvas').height;
+
         //Mouse Position based on canvas
         const canvas = document.getElementById('glcanvas');
         let rect = canvas.getBoundingClientRect();
-        clickX = Math.floor(width*(event.clientX - rect.left)/640);
-        clickY = Math.floor(height*(rect.top + rect.height - event.clientY)/480);
+        clickX = Math.floor(width*(event.clientX - rect.left)/window_width);
+        clickY = Math.floor(height*(rect.top + rect.height - event.clientY)/window_height);
 
         console.log('Mouse X: ' + clickX + ' Mouse Y: ' + clickY);
     }

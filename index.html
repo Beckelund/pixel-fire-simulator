@@ -16,7 +16,22 @@
     </head>
     <body>
         <div id="container">
-            <canvas id="glcanvas" width="640" height="480"></canvas>
+
+            <div id="pageInfo">
+                <h1 id="title">Pixel Fire Simulator</h1>
+                <p>inspired by the videogame "Noita", developed in WebGL</p>
+                <div id="controls">
+                    <p>Controls: </p>
+                    <ul>
+                        <li>Click to set a pixel on fire</li>
+                        <li>Keyboard (1:Normal view, 2:Scene view, 3:Fire lifetime, 4:Flames map, 5:Shimmer map, 9:Toggle pause render, 0:Toggle pause simulation)</li>
+                    </ul>
+
+                </div>
+            </div>
+            <div id="simulationWindow">
+                <canvas id="glcanvas" width="1280" height="960"></canvas>
+            </div>
             <div id="fpsCount_container">
                 <p>fps counter:</p> <p id="i_fpsCount"></p>
             </div>
