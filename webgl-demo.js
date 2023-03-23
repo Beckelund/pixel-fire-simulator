@@ -8,7 +8,7 @@ import { fragment_shader2 } from "./shaders/fragment_shader2.js";
 import { gaussian_blur_fragment_shader } from "./shaders/gaussian_blur_fragment_shader.js";
 
 //Util functions
-import { setPixel } from "../util/setPixel.js";
+import { setPixel } from "./util/setPixel.js";
 
 //Image generators from files
 import { generateSky } from "./image_generation/generateSky.js";
